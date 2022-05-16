@@ -1,0 +1,222 @@
+#include "game.h"
+
+#define error   0.01
+#define almost_eq(x, y) ((-error < ((double)(x) - (double)(y))) && (((double)(x) - (double)(y)) < error))
+
+static void test_init_game(void)
+{
+    init_game();
+    // C
+    double expect_Cj[NUM_RES_KINDS] = {8, 14, 90};
+    for (int j = 0; j < NUM_RES_KINDS; j++)
+        assert(almost_eq(expect_Cj[j], Cj[j]));
+    // psy
+    double expect_psy[NUM_USERS][NUM_RES_KINDS] = {
+        {1.0/4, 2.0/7, 2.0/9},
+        {1.0/8, 1.0/14, 1.0/9},
+        {1.0/4, 1.0/7, 1.0/9},
+    };
+    for (int i = 0; i < NUM_USERS; i++)
+        for (int j = 0; j < NUM_RES_KINDS; j++)
+            assert(almost_eq(psy[i][j], expect_psy[i][j]));
+    // d
+    double expect_d[NUM_USERS][NUM_RES_KINDS] = {
+        {7.0/8, 1.0, 7.0/9},
+        {1.0, 4.0/7, 8.0/9},
+        {1.0, 4.0/7, 4.0/9},
+    };
+    for (int i = 0; i < NUM_USERS; i++)
+        for (int j = 0; j < NUM_RES_KINDS; j++)
+            assert(almost_eq(expect_d[i][j], d[i][j]));
+    // lamda
+    assert(almost_eq(lamda, 8.0 / 23));
+}
+
+static void test_set_phi()
+{
+    init_game();
+    int coms[NUM_SERVERS][NUM_USERS] = {
+        {1, 2, 0},
+        {1, 0, 1},
+    };
+    double phi[NUM_USERS][NUM_RES_KINDS] = {0};
+    set_phi(coms, phi);
+    double expect_phi[NUM_USERS][NUM_RES_KINDS] = {
+        {4, 8, 40},
+        {2, 2, 20},
+        {2, 2, 10},
+    };
+    for (int i = 0; i < NUM_USERS; i++)
+        for (int j = 0; j < NUM_RES_KINDS; j++)
+            assert(almost_eq(phi[i][j], expect_phi[i][j]));
+}
+
+static void test_set_A()
+{
+    init_game();
+    int coms[NUM_SERVERS][NUM_USERS] = {
+        {1, 2, 0},
+        {1, 0, 1},
+    };
+    double A[NUM_SERVERS][NUM_USERS][NUM_RES_KINDS] = {0};
+    set_A(coms, A);
+    double expect_A[NUM_SERVERS][NUM_USERS][NUM_RES_KINDS] = {
+        {
+            {2, 4, 20},
+            {2, 2, 20},
+            {0, 0, 0},
+        },
+        {
+            {2, 4, 20},
+            {0, 0, 0},
+            {2, 2, 10},
+        },
+    };
+    for (int m = 0; m < NUM_SERVERS; m++)
+        for (int i = 0; i < NUM_USERS; i++)
+            for (int j = 0; j < NUM_RES_KINDS; j++)
+                assert(almost_eq(A[m][i][j], expect_A[m][i][j]));
+}
+
+static void test_u()
+{
+    init_game();
+    int coms[NUM_SERVERS][NUM_USERS] = {
+        {1, 2, 0},
+        {1, 0, 1},
+    };
+    double A[NUM_SERVERS][NUM_USERS][NUM_RES_KINDS] = {0};
+    set_A(coms, A);
+
+    double expect_u[NUM_SERVERS][NUM_RES_KINDS] = {
+        {1, 0.75, 1},
+        {1, 1, 0.6},
+    };
+    for (int m = 0; m < NUM_SERVERS; m++)
+        for (int j = 0; j < NUM_RES_KINDS; j++) {
+            double utilization = u(A, m, j);
+            assert(almost_eq(expect_u[m][j], utilization));
+        }
+
+}
+
+static void test_ske()
+{
+    init_game();
+    int coms[NUM_SERVERS][NUM_USERS] = {
+        {1, 2, 0},
+        {1, 0, 1},
+    };
+    double A[NUM_SERVERS][NUM_USERS][NUM_RES_KINDS] = {0};
+    set_A(coms, A);
+    double expect_ske[NUM_SERVERS] = {pow(6.0 / 121, 0.5), pow(24.0 / 169, 0.5)};
+    for (int m = 0; m < NUM_SERVERS; m++) {
+        double s = ske(A, m);
+        assert(almost_eq(s, expect_ske[m]));
+    }
+
+}
+
+static void test_Xij_Cj_lamda_Dij_a_1()
+{
+    init_game();
+    int coms[NUM_SERVERS][NUM_USERS] = {
+        {1, 2, 0},
+        {1, 0, 1},
+    };
+    double A[NUM_SERVERS][NUM_USERS][NUM_RES_KINDS] = {0};
+    set_A(coms, A);
+    /* 
+     * >>> (1.0) - (7.0/8.0) * (8.0/23.0)
+     * 0.6956521739130435
+     * >>> (0.75) - (1.0) * (8.0/23.0)
+     * 0.40217391304347827
+     * >>> (1.0) - (7.0/9.0) * (8.0/23.0)
+     * 0.7294685990338164
+     * >>> 
+     * >>> (1.0) - (1.0) * (8.0/23.0)
+     * 0.6521739130434783
+     * >>> (4.0/7.0) - (4.0/7.0) * (8.0/23.0)
+     * 0.37267080745341613
+     * >>> (8.0/9.0) - (8.0/9.0) * (8.0/23.0)
+     * 0.5797101449275361
+     * >>> 
+     * >>> (1.0) - (1.0) * (8.0/23.0)
+     * 0.6521739130434783
+     * >>> (4.0/7.0) - (4.0/7.0) * (8.0/23.0)
+     * 0.37267080745341613
+     * >>> (4.0/9.0) - (4.0/9.0) * (8.0/23.0)
+     * 0.28985507246376807
+     * >>> 
+     */
+    // double expect[NUM_USERS][NUM_RES_KINDS] = {
+    //     {0.6956521739130435, 0.40217391304347827, 0.7294685990338164,},
+    //     {0.6521739130434783, 0.37267080745341613, 0.5797101449275361,},
+    //     {0.6521739130434783, 0.37267080745341613, 0.28985507246376807,},
+    // };
+    double expect[NUM_USERS][NUM_RES_KINDS] = {
+        {0.6956, 0.40217, 0.72946,},
+        {0.6521, 0.37267, 0.57971,},
+        {0.6521, 0.37267, 0.28985,},
+    };
+    
+    // printf("%f\n", expect[2][0]);
+    // printf("%f\n", Xij_Cj_lamda_Dij_a_1(A, 2, 0));
+    for (int i = 0; i < NUM_USERS; i++)
+        for (int j; j < NUM_RES_KINDS; j++) {
+            // printf("%f\n", expect[2][0]);
+            // printf("%f\n", Xij_Cj_lamda_Dij_a_1(A, 2, 0));
+
+            assert(almost_eq(expect[i][j], Xij_Cj_lamda_Dij_a_1(A, i, j)));
+        }
+}
+
+static void test_v()
+{
+    init_game();
+    int coms[NUM_SERVERS][NUM_USERS] = {
+        {1, 2, 0},
+        {1, 0, 1},
+    };
+    double A[NUM_SERVERS][NUM_USERS][NUM_RES_KINDS] = {0};
+    set_A(coms, A);
+    // double expect_v = ;
+    // assert(almost_eq(expect_v, v(A)));
+}
+
+
+static void test_U()
+{
+    double val;
+    init_game();
+    int coms[NUM_SERVERS][NUM_USERS] = {
+        {1, 2, 0},
+        {1, 0, 1},
+    };
+    double A[NUM_SERVERS][NUM_USERS][NUM_RES_KINDS] = {0};
+    set_A(coms, A);
+
+    // double expect_U[NUM_SERVERS] = {};
+    // for (int m = 0; m < NUM_SERVERS; m++) {
+    //     double val = U(A, m);
+    //     assert(almost_eq(val, expect_U[m]));
+    // }
+    // val = U(A, 0);
+    // assert(almost_eq(val, 1.2));
+    // val = U(A, 1);
+    // assert(almost_eq(val, 1.27));
+}
+
+int main()
+{
+    test_init_game();
+    test_set_phi();
+    test_set_A();
+    test_u();
+    test_ske();
+    test_Xij_Cj_lamda_Dij_a_1();
+
+    test_v();
+    test_U();
+    return 0;
+}
